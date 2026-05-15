@@ -1,9 +1,10 @@
 import os
 import sys
 import requests
+from bs4 import BeautifulSoup
 from datetime import datetime
 
-print("=== BVC Investment Thesis Assistant - Múltiples Períodos ===\n")
+print("=== BVC Investment Thesis Assistant - Modo Abierto ===\n")
 print(f"Inicio: {datetime.now()}\n")
 
 os.makedirs("pdfs", exist_ok=True)
@@ -16,22 +17,49 @@ def descargar_pdf(url, empresa, periodo):
     filename = f"{empresa.upper()}_{periodo}.pdf"
     filepath = os.path.join(carpeta, filename)
     
-    print(f"⬇️  {empresa} - {periodo}")
+    print(f"⬇️  Descargando: {empresa} - {periodo}")
     try:
         r = requests.get(url, headers=headers, timeout=90)
-        print(f"   HTTP: {r.status_code} | Tamaño: {len(r.content)/1024/1024:.2f} MB")
-        
         if r.status_code == 200 and len(r.content) > 100000:
             with open(filepath, 'wb') as f:
                 f.write(r.content)
-            print(f"✅ ¡DESCARGADO! → {filename}\n")
+            print(f"✅ ¡DESCARGADO! → {filename} ({len(r.content)/1024/1024:.1f} MB)\n")
             return True
         else:
-            print(f"❌ Falló (archivo pequeño o error)\n")
+            print(f"❌ Error o archivo pequeño ({r.status_code})\n")
             return False
     except Exception as e:
         print(f"❌ Error: {e}\n")
         return False
+
+
+def buscar_en_pagina_inversionistas(empresa, periodo):
+    """Intenta buscar PDF en página de inversionistas conocida"""
+    print(f"🔍 Buscando en página de inversionistas de {empresa}...")
+    
+    urls_paginas = {
+        "MINEROS": "https://www.mineros.com.co/es-co/inversionistas/informes-financieros",
+        "ECOPETROL": "https://www.ecopetrol.com.co/wps/portal/Home/es/Inversionistas/InformacionFinanciera/Estadosfinancieros",
+        "BANCOLOMBIA": "https://www.grupobancolombia.com/inversionistas/informacion-financiera/estados-financieros"
+    }
+    
+    if empresa in urls_paginas:
+        try:
+            r = requests.get(urls_paginas[empresa], headers=headers, timeout=30)
+            soup = BeautifulSoup(r.text, 'html.parser')
+            links = soup.find_all('a', href=True)
+            
+            for link in links:
+                href = link['href']
+                if any(ext in href.lower() for ext in ['.pdf']) and periodo.lower() in href.lower():
+                    if not href.startswith('http'):
+                        href = "https://www.mineros.com.co" + href if empresa == "MINEROS" else href
+                    print(f"   Enlace encontrado: {href}")
+                    descargar_pdf(href, empresa, periodo)
+                    return True
+        except Exception as e:
+            print(f"   Error buscando en página: {e}")
+    return False
 
 
 if __name__ == "__main__":
@@ -41,24 +69,13 @@ if __name__ == "__main__":
     print(f"Empresa: {empresa}")
     print(f"Períodos solicitados: {periodos}\n")
 
-    # ==================== ENLACES REALES ====================
-    enlaces = {
-        "MINEROS": {
-            "1T2026": "https://cdn.prod.website-files.com/66c623b1be3c82e1f1d2c520/69fca2fc3300d2c7927432f3_Q1%202026%20EE.FF%20Separado%20(CO-882463)%20final%20(48231).pdf",
-            "Anual2025": "https://cdn.prod.website-files.com/66d5fe0b309d400659e06f21/69966ab8493bb5e28b7074df_EE.FF%20Separados%202025%20-%202024%20(42537).pdf"
-        },
-        "ECOPETROL": {
-            "1T2026": "https://files.ecopetrol.com.co/web/esp/inversionista/reporte-1t-2026.pdf"
-        }
-    }
-
-    descargados = 0
     for periodo in periodos:
-        if empresa in enlaces and periodo in enlaces[empresa]:
-            url = enlaces[empresa][periodo]
-            if descargar_pdf(url, empresa, periodo):
-                descargados += 1
-        else:
-            print(f"⚠️  Sin enlace configurado para {empresa} - {periodo}\n")
+        # Primero intenta con enlaces conocidos
+        # ... (puedes mantener el diccionario de enlaces si quieres)
+        encontrado = buscar_en_pagina_inversionistas(empresa, periodo)
+        
+        if not encontrado:
+            print(f"⚠️ No encontré enlace automático para {empresa} - {periodo}")
+            print("   Puedes darme el enlace directo y lo agrego.\n")
 
-    print(f"\n✅ Proceso terminado. Archivos descargados: {descargados}")
+    print("✅ Proceso terminado.")
