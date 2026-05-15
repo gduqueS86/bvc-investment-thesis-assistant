@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       empresa:
-        description: 'Nombre de la empresa (ej: ECOPETROL, MINEROS, BANCOLOMBIA)'
+        description: 'Empresa (ej: MINEROS, ECOPETROL)'
         required: true
-        default: 'ECOPETROL'
-      periodo:
-        description: 'Período (ej: 1T2026, 2T2025, Anual2025)'
+        default: 'MINEROS'
+      periodos:
+        description: 'Períodos separados por espacio (ej: 1T2026 Anual2025 Anual2024)'
         required: true
         default: '1T2026'
 
@@ -28,12 +28,13 @@ jobs:
       - run: pip install -r requirements.txt
 
       - name: Run downloader
-        run: python downloader.py "${{ inputs.empresa }}" "${{ inputs.periodo }}"
+        run: python downloader.py "${{ inputs.empresa }}" ${{ inputs.periodos }}
 
       - name: Commit & Push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add pdfs/ data/
-          git commit -m "Descarga manual: ${{ inputs.empresa }} - ${{ inputs.periodo }} ($(date +'%Y-%m-%d'))" || echo "No hay cambios nuevos"
-          git push
+          git add pdfs/ || true
+          git add data/ || true
+          git commit -m "Descarga: ${{ inputs.empresa }} - ${{ inputs.periodos }} ($(date +'%Y-%m-%d %H:%M'))" || echo "No hay cambios nuevos"
+          git push || echo "No se pudo hacer push (posiblemente sin cambios)"
