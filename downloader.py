@@ -1,81 +1,64 @@
 import os
-import sys
-import requests
-from bs4 import BeautifulSoup
+import pdfplumber
+import pandas as pd
 from datetime import datetime
 
-print("=== BVC Investment Thesis Assistant - Modo Abierto ===\n")
+print("=== BVC Investment Thesis Assistant - Extractor de PDFs ===\n")
 print(f"Inicio: {datetime.now()}\n")
 
-os.makedirs("pdfs", exist_ok=True)
-
-headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-
-def descargar_pdf(url, empresa, periodo):
-    carpeta = os.path.join("pdfs", empresa.upper().replace(" ", "_"))
-    os.makedirs(carpeta, exist_ok=True)
-    filename = f"{empresa.upper()}_{periodo}.pdf"
-    filepath = os.path.join(carpeta, filename)
+def extraer_pdf(ruta_pdf):
+    print(f"Procesando: {ruta_pdf}")
+    texto_completo = ""
+    tablas = []
     
-    print(f"⬇️  Descargando: {empresa} - {periodo}")
-    try:
-        r = requests.get(url, headers=headers, timeout=90)
-        if r.status_code == 200 and len(r.content) > 100000:
-            with open(filepath, 'wb') as f:
-                f.write(r.content)
-            print(f"✅ ¡DESCARGADO! → {filename} ({len(r.content)/1024/1024:.1f} MB)\n")
-            return True
-        else:
-            print(f"❌ Error o archivo pequeño ({r.status_code})\n")
-            return False
-    except Exception as e:
-        print(f"❌ Error: {e}\n")
-        return False
-
-
-def buscar_en_pagina_inversionistas(empresa, periodo):
-    """Intenta buscar PDF en página de inversionistas conocida"""
-    print(f"🔍 Buscando en página de inversionistas de {empresa}...")
-    
-    urls_paginas = {
-        "MINEROS": "https://www.mineros.com.co/es-co/inversionistas/informes-financieros",
-        "ECOPETROL": "https://www.ecopetrol.com.co/wps/portal/Home/es/Inversionistas/InformacionFinanciera/Estadosfinancieros",
-        "BANCOLOMBIA": "https://www.grupobancolombia.com/inversionistas/informacion-financiera/estados-financieros"
-    }
-    
-    if empresa in urls_paginas:
-        try:
-            r = requests.get(urls_paginas[empresa], headers=headers, timeout=30)
-            soup = BeautifulSoup(r.text, 'html.parser')
-            links = soup.find_all('a', href=True)
+    with pdfplumber.open(ruta_pdf) as pdf:
+        for i, pagina in enumerate(pdf.pages):
+            # Extraer texto completo (incluye notas)
+            texto = pagina.extract_text()
+            if texto:
+                texto_completo += f"\n--- Página {i+1} ---\n{texto}\n"
             
-            for link in links:
-                href = link['href']
-                if any(ext in href.lower() for ext in ['.pdf']) and periodo.lower() in href.lower():
-                    if not href.startswith('http'):
-                        href = "https://www.mineros.com.co" + href if empresa == "MINEROS" else href
-                    print(f"   Enlace encontrado: {href}")
-                    descargar_pdf(href, empresa, periodo)
-                    return True
-        except Exception as e:
-            print(f"   Error buscando en página: {e}")
-    return False
+            # Extraer tablas
+            tablas_pagina = pagina.extract_tables()
+            for tabla in tablas_pagina:
+                if tabla and len(tabla) > 1:
+                    df = pd.DataFrame(tabla[1:], columns=tabla[0])
+                    tablas.append({
+                        "pagina": i+1,
+                        "tabla": df
+                    })
+    
+    return texto_completo, tablas
+
+
+def procesar_todos_pdfs():
+    carpeta_pdfs = "pdfs"
+    if not os.path.exists(carpeta_pdfs):
+        print("No existe carpeta pdfs/")
+        return
+    
+    for empresa in os.listdir(carpeta_pdfs):
+        ruta_empresa = os.path.join(carpeta_pdfs, empresa)
+        if os.path.isdir(ruta_empresa):
+            print(f"\n📁 Empresa: {empresa}")
+            
+            for archivo in os.listdir(ruta_empresa):
+                if archivo.endswith(".pdf"):
+                    ruta_pdf = os.path.join(ruta_empresa, archivo)
+                    texto, tablas = extraer_pdf(ruta_pdf)
+                    
+                    # Guardar texto completo
+                    nombre_base = archivo.replace(".pdf", "")
+                    with open(f"data/{nombre_base}_texto_completo.md", "w", encoding="utf-8") as f:
+                        f.write(f"# {archivo}\n\n")
+                        f.write(texto)
+                    
+                    print(f"   ✅ Extraído: {archivo}")
+                    print(f"   Tablas encontradas: {len(tablas)}")
+                    print(f"   Texto guardado en: data/{nombre_base}_texto_completo.md\n")
 
 
 if __name__ == "__main__":
-    empresa = sys.argv[1].upper() if len(sys.argv) > 1 else "MINEROS"
-    periodos = sys.argv[2:] if len(sys.argv) > 2 else ["1T2026"]
-
-    print(f"Empresa: {empresa}")
-    print(f"Períodos solicitados: {periodos}\n")
-
-    for periodo in periodos:
-        # Primero intenta con enlaces conocidos
-        # ... (puedes mantener el diccionario de enlaces si quieres)
-        encontrado = buscar_en_pagina_inversionistas(empresa, periodo)
-        
-        if not encontrado:
-            print(f"⚠️ No encontré enlace automático para {empresa} - {periodo}")
-            print("   Puedes darme el enlace directo y lo agrego.\n")
-
-    print("✅ Proceso terminado.")
+    os.makedirs("data", exist_ok=True)
+    procesar_todos_pdfs()
+    print("🎯 Extracción terminada. Revisa la carpeta 'data/'")
