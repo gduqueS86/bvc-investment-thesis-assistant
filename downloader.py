@@ -4,33 +4,30 @@ import requests
 import sys
 from datetime import datetime
 
-print("=== BVC Investment Thesis Assistant - Downloader Flexible ===\n")
+print("=== BVC Investment Thesis Assistant - Selector de Empresa y Período ===\n")
 print(f"Inicio: {datetime.now()}\n")
 
-# Crear estructura
 os.makedirs("pdfs", exist_ok=True)
 os.makedirs("data", exist_ok=True)
 
-# Cargar configuración base
 with open('config.yaml', 'r', encoding='utf-8') as f:
     config = yaml.safe_load(f)
 
-headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-}
+headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
-def descargar_pdf(url, empresa, nombre_archivo):
+def descargar_pdf(url, empresa, periodo):
     carpeta = os.path.join("pdfs", empresa.upper())
     os.makedirs(carpeta, exist_ok=True)
-    filepath = os.path.join(carpeta, nombre_archivo)
+    filename = f"{empresa.upper()}_{periodo}.pdf"
+    filepath = os.path.join(carpeta, filename)
     
-    print(f"⬇️  Descargando: {empresa} → {nombre_archivo}")
+    print(f"⬇️  Descargando: {empresa} - {periodo}")
     try:
         r = requests.get(url, headers=headers, timeout=60)
         if r.status_code == 200 and len(r.content) > 100000:
             with open(filepath, 'wb') as f:
                 f.write(r.content)
-            print(f"✅ ¡DESCARGADO! ({len(r.content)/1024/1024:.1f} MB)")
+            print(f"✅ ¡ÉXITO! → {filename} ({len(r.content)/1024/1024:.1f} MB)")
             return True
         else:
             print(f"❌ Error ({r.status_code})")
@@ -41,36 +38,31 @@ def descargar_pdf(url, empresa, nombre_archivo):
 
 
 if __name__ == "__main__":
-    # === Permitir pasar empresas por comando ===
-    if len(sys.argv) > 1:
-        empresas = [sys.argv[1].upper()]
-        print(f"Modo manual: Solo empresa {empresas[0]}")
-    else:
-        empresas = config.get('watchlist', ["ECOPETROL"])
-        print(f"Modo config: {empresas}")
-
-    print("\nIniciando descargas...\n")
-
-    # ==================== EJEMPLOS DE DESCARGAS ====================
-    for empresa in empresas:
-        print(f"\n📌 Empresa: {empresa}")
-        
-        # Aquí puedes ir agregando más enlaces según la empresa
-        if empresa == "ECOPETROL":
-            descargar_pdf(
-                "https://files.ecopetrol.com.co/web/esp/inversionista/reporte-1t-2026.pdf",
-                empresa,
-                "ECOPETROL_Informe_1T2026.pdf"
-            )
-            # Agrega más trimestres aquí
-            
-        elif empresa == "BANCOLOMBIA":
-            print("   → Agregar enlaces de Bancolombia aquí")
-            # Ejemplo futuro: descargar_pdf(url_bancolombia, empresa, nombre)
-            
-        else:
-            print(f"   → No hay enlaces configurados aún para {empresa}")
+    # Leer parámetros (empresa y período)
+    empresa = "ECOPETROL"
+    periodo = "1T2026"
     
-    print("\n" + "="*70)
-    print("✅ Descarga finalizada.")
-    print("Puedes ejecutar con empresa específica usando: python downloader.py ECOPETROL")
+    if len(sys.argv) > 1:
+        empresa = sys.argv[1].upper()
+    if len(sys.argv) > 2:
+        periodo = sys.argv[2]
+
+    print(f"Empresa seleccionada: {empresa}")
+    print(f"Período seleccionado: {periodo}\n")
+
+    # ==================== ENLACES REALES ====================
+    if empresa == "ECOPETROL":
+        if periodo == "1T2026":
+            url = "https://files.ecopetrol.com.co/web/esp/inversionista/reporte-1t-2026.pdf"
+        elif periodo == "2T2025":
+            url = "https://files.ecopetrol.com.co/web/esp/inversionista/reporte-2t-2025.pdf"  # cambia según existan
+        else:
+            url = "https://files.ecopetrol.com.co/web/esp/inversionista/reporte-1t-2026.pdf"
+        
+        descargar_pdf(url, empresa, periodo)
+    
+    else:
+        print(f"⚠️  Aún no tengo enlaces configurados para {empresa}")
+        print("Agrega más empresas en el código.")
+
+    print("\n✅ Proceso finalizado.")
