@@ -1,0 +1,11 @@
+watchlist:
+  - "Mineros"
+  - "BANCOLOMBIA"
+  - "GRUPOEXITO"
+  - "BHI"
+  - "GEB"
+
+download:
+  max_years_back: 3
+  output_folder: "pdfs"
+  data_folder: "data"
