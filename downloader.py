@@ -1,36 +1,39 @@
-name: Actualizar Reportes Financieros BVC
+import os
+import yaml
+import requests
+import time
+from datetime import datetime
 
-on:
-  schedule:
-    - cron: '0 10 5 * *'     # Corre el día 5 de cada mes a las 10:00 UTC
-  workflow_dispatch:         # Permite ejecutarlo manualmente
+print("=== BVC Investment Thesis Assistant - GitHub Actions ===\n")
+print(f"Inicio: {datetime.now()}\n")
 
-jobs:
-  update:
-    runs-on: ubuntu-latest
+# Crear carpetas
+os.makedirs("pdfs", exist_ok=True)
+os.makedirs("data", exist_ok=True)
+
+# Cargar configuración
+try:
+    with open('config.yaml', 'r', encoding='utf-8') as f:
+        config = yaml.safe_load(f)
+    print("✅ Configuración cargada correctamente")
+    print(f"Empresas en watchlist: {config.get('watchlist', [])}")
+except Exception as e:
+    print(f"❌ Error cargando config.yaml: {e}")
+    config = {"watchlist": ["ECOPETROL", "BANCOLOMBIA"]}
+
+headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+}
+
+def buscar_reportes(empresa):
+    print(f"\n🔍 Buscando reportes para: {empresa}")
+    search_url = f"https://www.superfinanciera.gov.co/SIMEV2/?s={empresa.replace(' ', '+')}"
+    print(f"🔗 Enlace de búsqueda: {search_url}")
+    print("   (Por ahora abre este enlace manualmente desde tu celular o PC)")
+
+if __name__ == "__main__":
+    for empresa in config.get('watchlist', []):
+        buscar_reportes(empresa)
+        time.sleep(3)
     
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
-
-      - name: Run downloader
-        run: python downloader.py
-
-      - name: Commit and push new files
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add pdfs/ data/ 
-          git commit -m "Actualización automática de reportes financieros - $(date +'%Y-%m-%d')" || echo "No hay cambios nuevos"
-          git push
+    print("\n✅ Proceso finalizado (versión básica)")
