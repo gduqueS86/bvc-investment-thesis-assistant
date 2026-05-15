@@ -1,64 +1,37 @@
 import os
 import pdfplumber
-import pandas as pd
 from datetime import datetime
 
-print("=== BVC Investment Thesis Assistant - Extractor de PDFs ===\n")
-print(f"Inicio: {datetime.now()}\n")
+print("=== Extractor Resumido para Celular ===\n")
 
-def extraer_pdf(ruta_pdf):
+def extraer_resumen_pdf(ruta_pdf):
     print(f"Procesando: {ruta_pdf}")
-    texto_completo = ""
-    tablas = []
+    texto_resumen = ""
     
     with pdfplumber.open(ruta_pdf) as pdf:
-        for i, pagina in enumerate(pdf.pages):
-            # Extraer texto completo (incluye notas)
+        for i, pagina in enumerate(pdf.pages[:10]):  # Solo primeras 10 páginas (las más importantes)
             texto = pagina.extract_text()
             if texto:
-                texto_completo += f"\n--- Página {i+1} ---\n{texto}\n"
-            
-            # Extraer tablas
-            tablas_pagina = pagina.extract_tables()
-            for tabla in tablas_pagina:
-                if tabla and len(tabla) > 1:
-                    df = pd.DataFrame(tabla[1:], columns=tabla[0])
-                    tablas.append({
-                        "pagina": i+1,
-                        "tabla": df
-                    })
+                texto_resumen += texto + "\n\n"
     
-    return texto_completo, tablas
-
-
-def procesar_todos_pdfs():
-    carpeta_pdfs = "pdfs"
-    if not os.path.exists(carpeta_pdfs):
-        print("No existe carpeta pdfs/")
-        return
+    # Guardar resumen corto
+    nombre = os.path.basename(ruta_pdf).replace(".pdf", "")
+    with open(f"data/{nombre}_RESUMEN.md", "w", encoding="utf-8") as f:
+        f.write(f"# Resumen {nombre}\n\n")
+        f.write(texto_resumen[:15000])  # Limitamos para que sea más fácil copiar
     
-    for empresa in os.listdir(carpeta_pdfs):
-        ruta_empresa = os.path.join(carpeta_pdfs, empresa)
-        if os.path.isdir(ruta_empresa):
-            print(f"\n📁 Empresa: {empresa}")
-            
-            for archivo in os.listdir(ruta_empresa):
-                if archivo.endswith(".pdf"):
-                    ruta_pdf = os.path.join(ruta_empresa, archivo)
-                    texto, tablas = extraer_pdf(ruta_pdf)
-                    
-                    # Guardar texto completo
-                    nombre_base = archivo.replace(".pdf", "")
-                    with open(f"data/{nombre_base}_texto_completo.md", "w", encoding="utf-8") as f:
-                        f.write(f"# {archivo}\n\n")
-                        f.write(texto)
-                    
-                    print(f"   ✅ Extraído: {archivo}")
-                    print(f"   Tablas encontradas: {len(tablas)}")
-                    print(f"   Texto guardado en: data/{nombre_base}_texto_completo.md\n")
+    print(f"✅ Resumen guardado en: data/{nombre}_RESUMEN.md")
+    print("   (Primeras 10 páginas - suficiente para tesis)")
 
 
 if __name__ == "__main__":
     os.makedirs("data", exist_ok=True)
-    procesar_todos_pdfs()
-    print("🎯 Extracción terminada. Revisa la carpeta 'data/'")
+    
+    # Procesa todos los PDFs
+    for root, dirs, files in os.walk("pdfs"):
+        for file in files:
+            if file.endswith(".pdf"):
+                ruta = os.path.join(root, file)
+                extraer_resumen_pdf(ruta)
+    
+    print("\n🎯 Listo. Ahora abre los archivos _RESUMEN.md y copia el contenido.")
